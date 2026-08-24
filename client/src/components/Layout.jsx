@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import ChatBot from './ChatBot';
@@ -6,7 +6,9 @@ import ChatBot from './ChatBot';
 export default function Layout() {
   const { user, logout } = useAuth();
   const { cart } = useCart();
+  const location = useLocation();
   const count = cart?.itemCount || 0;
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
     <>
@@ -22,6 +24,7 @@ export default function Layout() {
                 Orders
               </NavLink>
             )}
+            {user?.role === 'ADMIN' && <NavLink to="/admin">Admin</NavLink>}
             {user ? (
               <>
                 <span className="hide-sm muted">{user.fullName.split(' ')[0]}</span>
@@ -45,7 +48,7 @@ export default function Layout() {
       <footer className="site-footer">
         <div className="container">FORMA — next-gen everyday goods · Local MVP</div>
       </footer>
-      <ChatBot />
+      {!isAdminRoute && <ChatBot />}
     </>
   );
 }
