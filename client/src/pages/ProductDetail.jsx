@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, mediaUrl } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
@@ -62,7 +62,7 @@ export default function ProductDetail() {
   return (
     <div className="container detail">
       <div className="detail-media">
-        <img src={product.imageUrl} alt={product.name} />
+        <img src={mediaUrl(product.imageUrl)} alt={product.name} />
       </div>
       <div className="detail-info">
         <p className="muted">{product.brand}</p>

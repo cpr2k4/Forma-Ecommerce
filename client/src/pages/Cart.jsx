@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { mediaUrl } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
@@ -40,7 +41,7 @@ export default function Cart() {
         </h1>
         {cart.items.map((item) => (
           <div className="cart-item" key={item.id}>
-            <img src={item.product.imageUrl} alt={item.product.name} />
+            <img src={mediaUrl(item.product.imageUrl)} alt={item.product.name} />
             <div>
               <strong>{item.product.name}</strong>
               <div className="muted" style={{ fontSize: '0.9rem' }}>

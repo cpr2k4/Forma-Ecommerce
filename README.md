@@ -45,7 +45,7 @@ npm run dev
 | Role | Email | Password |
 |------|-------|----------|
 | Customer | demo@shop.com | password123 |
-| Admin | admin@shop.com | password123 |
+| Admin | admin@gmail.com | Password |
 
 ## Razorpay (test mode)
 

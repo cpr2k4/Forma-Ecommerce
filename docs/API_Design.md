@@ -81,6 +81,26 @@ All failures return:
 | `POST` | `/orders/:id/confirm-payment` | ✅ | Verify payment, mark PAID, decrement stock |
 | `GET` | `/payments/config` | — | Public Razorpay key + currency |
 | `POST` | `/ai/chat` | Optional | FORMA Assist chatbot |
+| `GET` | `/profile` | ✅ | Current user + addresses |
+| `PATCH` | `/profile` | ✅ | Update name, phone, email, avatarUrl |
+| `POST` | `/profile/avatar` | ✅ | Upload avatar (multipart `avatar`) |
+| `POST` | `/profile/addresses` | ✅ | Create address |
+| `PATCH` | `/profile/addresses/:id` | ✅ | Update own address |
+| `DELETE` | `/profile/addresses/:id` | ✅ | Delete own address |
+| `PATCH` | `/profile/addresses/:id/default` | ✅ | Set default address |
+| `GET` | `/admin/stats` | ✅ ADMIN | Dashboard counts |
+| `GET` | `/admin/products` | ✅ ADMIN | List all products (incl. unpublished) |
+| `GET` | `/admin/products/:id` | ✅ ADMIN | Product by id |
+| `POST` | `/admin/products/upload-image` | ✅ ADMIN | Upload product image (multipart `image`) |
+| `POST` | `/admin/products` | ✅ ADMIN | Create product + variants |
+| `PATCH` | `/admin/products/:id` | ✅ ADMIN | Update product + variants |
+| `DELETE` | `/admin/products/:id` | ✅ ADMIN | Delete product (blocked if order history) |
+| `GET` | `/admin/inventory` | ✅ ADMIN | Flat SKU stock list |
+| `PATCH` | `/admin/inventory/:variantId` | ✅ ADMIN | Update stockQty |
+| `GET` | `/admin/categories` | ✅ ADMIN | Categories |
+| `POST` | `/admin/categories` | ✅ ADMIN | Create category |
+| `GET` | `/admin/orders` | ✅ ADMIN | All orders |
+| `PATCH` | `/admin/orders/:id/status` | ✅ ADMIN | Update order status |
 
 ---
 
@@ -662,19 +682,144 @@ POST /ai/chat  { message }
 | `api.getPaymentConfig()` | `GET /payments/config` |
 | `api.getOrders()` | `GET /orders` |
 | `api.chat(body)` | `POST /ai/chat` |
+| `api.getProfile()` | `GET /profile` |
+| `api.updateProfile(body)` | `PATCH /profile` |
+| `api.uploadAvatar(file)` | `POST /profile/avatar` |
+| `api.createAddress(body)` | `POST /profile/addresses` |
+| `api.updateAddress(id, body)` | `PATCH /profile/addresses/:id` |
+| `api.deleteAddress(id)` | `DELETE /profile/addresses/:id` |
+| `api.setDefaultAddress(id)` | `PATCH /profile/addresses/:id/default` |
+| `api.adminStats()` | `GET /admin/stats` |
+| `api.adminProducts()` | `GET /admin/products` |
+| `api.adminProduct(id)` | `GET /admin/products/:id` |
+| `api.adminUploadProductImage(file)` | `POST /admin/products/upload-image` |
+| `api.adminCreateProduct(body)` | `POST /admin/products` |
+| `api.adminUpdateProduct(id, body)` | `PATCH /admin/products/:id` |
+| `api.adminDeleteProduct(id)` | `DELETE /admin/products/:id` |
+| `api.adminInventory()` | `GET /admin/inventory` |
+| `api.adminUpdateStock(id, body)` | `PATCH /admin/inventory/:id` |
+| `api.adminCategories()` | `GET /admin/categories` |
+| `api.adminCreateCategory(body)` | `POST /admin/categories` |
+| `api.adminOrders()` | `GET /admin/orders` |
+| `api.adminUpdateOrderStatus(id, body)` | `PATCH /admin/orders/:id/status` |
 
 ---
 
-## 12. Planned / not implemented yet
+## 12. Profile — `/profile` (authenticated)
+
+All routes require `Authorization: Bearer <token>`.
+
+### `GET /profile`
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "demo@shop.com",
+    "fullName": "Demo Customer",
+    "phone": "9876543210",
+    "role": "CUSTOMER",
+    "avatarUrl": null,
+    "hasPassword": true
+  },
+  "addresses": [
+    {
+      "id": "uuid",
+      "label": "Home",
+      "fullName": "Demo Customer",
+      "phone": "9876543210",
+      "line1": "12 Park Street",
+      "line2": null,
+      "city": "Mumbai",
+      "state": "MH",
+      "postalCode": "400001",
+      "country": "IN",
+      "isDefault": true
+    }
+  ]
+}
+```
+
+### `PATCH /profile`
+Update any of: `fullName`, `phone`, `email`, `avatarUrl` (URL string or empty/null to clear).
+Email is lowercased; `409` if already taken.
+
+### `POST /profile/avatar`
+Multipart form field: `avatar` (JPEG, PNG, WebP, or GIF · max 5MB).
+Stores file under `server/uploads/avatars/` and sets `avatarUrl` to `/uploads/avatars/<filename>`.
+Served statically at `GET /uploads/...` (API origin, not under `/api`).
+
+```json
+{ "user": { "id": "uuid", "avatarUrl": "/uploads/avatars/....jpg", "...": "..." } }
+```
+
+### Addresses
+- `POST /profile/addresses` — create (first address becomes default automatically)
+- `PATCH /profile/addresses/:id` — update own address; `isDefault: true` clears other defaults
+- `DELETE /profile/addresses/:id` — delete; promotes another address to default if needed
+- `PATCH /profile/addresses/:id/default` — set as default
+
+Ownership enforced — other users' address ids return `404`.
+
+---
+
+## 13. Admin — `/admin` (ADMIN role required)
+
+All routes require `Authorization: Bearer <token>` where `role === ADMIN`.
+
+Prices in create/update bodies are **rupees** (e.g. `7999` → stored as `799900` cents).
+
+### `GET /admin/stats`
+```json
+{ "products": 6, "variants": 12, "lowStock": 2, "outOfStock": 1, "orders": 3 }
+```
+
+### `GET /admin/products` · `GET /admin/products/:id`
+Returns products including unpublished, with `isPublished` and full variants.
+
+### `POST /admin/products/upload-image`
+Multipart form field: `image` (same type/size limits as avatar).
+Returns `{ "imageUrl": "/uploads/products/<filename>" }` — pass that into create/update product `imageUrl`.
+
+### `POST /admin/products` · `PATCH /admin/products/:id`
+```json
+{
+  "name": "Desk Lamp",
+  "slug": "desk-lamp",
+  "brand": "FORMA",
+  "description": "...",
+  "categorySlug": "home",
+  "imageUrl": "https://...",
+  "basePrice": 3299,
+  "isPublished": true,
+  "variants": [
+    { "id": "uuid-optional-on-update", "sku": "LAMP-01", "color": "Brass", "size": "", "price": 3299, "stockQty": 20 }
+  ]
+}
+```
+
+### `DELETE /admin/products/:id`
+Fails with `400` if any variant appears on an order — unpublish instead.
+
+### `GET /admin/inventory` · `PATCH /admin/inventory/:variantId`
+Patch body: `{ "stockQty": 42 }`
+
+### `GET /admin/orders` · `PATCH /admin/orders/:id/status`
+Status body: `{ "status": "SHIPPED" }`  
+Allowed: `PENDING` | `PAID` | `PROCESSING` | `SHIPPED` | `DELIVERED` | `CANCELLED`
+
+---
+
+## 14. Planned / not implemented yet
 
 | Area | Notes |
 |---|---|
-| Admin product CRUD | Role `ADMIN` exists; no admin routes yet |
 | Reviews write API | `reviews` table exists; only read on product detail |
 | Guest cart | Cart requires auth |
 | Password reset | Not implemented |
 | Other OAuth providers (Apple, GitHub, etc.) | Only Google implemented |
 | Razorpay webhooks | Confirm is client-driven today |
+| Admin user management | Not implemented |
+| Image file upload | Image URL text field only |
 | API versioning (`/api/v1`) | Flat `/api` for MVP |
 | Rate limiting | Documented for Redis later |
 

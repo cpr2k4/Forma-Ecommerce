@@ -10,6 +10,7 @@ import Checkout from './pages/Checkout.jsx';
 import Orders from './pages/Orders.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import Profile from './pages/Profile.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import AdminProducts from './pages/admin/AdminProducts.jsx';
 import AdminProductForm from './pages/admin/AdminProductForm.jsx';
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/orders" element={<Orders />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/profile" element={<Profile />} />
         <Route
           path="/admin"
           element={

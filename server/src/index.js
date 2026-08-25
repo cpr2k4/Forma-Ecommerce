@@ -7,7 +7,10 @@ import { cartRouter } from './modules/cart/cart.routes.js';
 import { orderRouter } from './modules/order/order.routes.js';
 import { paymentRouter } from './modules/payment/payment.routes.js';
 import { aiRouter } from './modules/ai/ai.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
+import { profileRouter } from './modules/profile/profile.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { uploadsRoot } from './lib/upload.js';
 
 dotenv.config();
 
@@ -16,6 +19,7 @@ const PORT = process.env.PORT || 5050;
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
+app.use('/uploads', express.static(uploadsRoot));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Ecommerce API running' });
@@ -27,6 +31,8 @@ app.use('/api/cart', cartRouter);
 app.use('/api/orders', orderRouter);
 app.use('/api/payments', paymentRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/profile', profileRouter);
 
 app.use(errorHandler);
 

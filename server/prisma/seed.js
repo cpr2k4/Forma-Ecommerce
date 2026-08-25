@@ -18,12 +18,13 @@ async function main() {
   await prisma.address.deleteMany();
   await prisma.user.deleteMany();
 
-  const passwordHash = await bcrypt.hash('password123', 10);
+  const customerPasswordHash = await bcrypt.hash('password123', 10);
+  const adminPasswordHash = await bcrypt.hash('Password', 10);
 
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@shop.com',
-      passwordHash,
+      email: 'admin@gmail.com',
+      passwordHash: adminPasswordHash,
       fullName: 'Store Admin',
       role: 'ADMIN',
     },
@@ -32,7 +33,7 @@ async function main() {
   const customer = await prisma.user.create({
     data: {
       email: 'demo@shop.com',
-      passwordHash,
+      passwordHash: customerPasswordHash,
       fullName: 'Demo Customer',
       phone: '9876543210',
       role: 'CUSTOMER',
@@ -153,7 +154,7 @@ async function main() {
   console.log('Seed complete.');
   console.log('Demo accounts:');
   console.log('  Customer: demo@shop.com / password123');
-  console.log('  Admin:    admin@shop.com / password123');
+  console.log('  Admin:    admin@gmail.com / Password');
 }
 
 main()

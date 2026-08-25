@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 
 const emptyVariant = () => ({
+  id: undefined,
   sku: '',
   color: '',
   size: '',
@@ -22,6 +23,11 @@ const emptyForm = {
   variants: [emptyVariant()],
 };
 
+function centsToRupees(cents) {
+  if (cents == null) return '';
+  return String(cents / 100);
+}
+
 export default function AdminProductForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -29,22 +35,21 @@ export default function AdminProductForm() {
   const [form, setForm] = useState(emptyForm);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    api.getCategories().then((d) => setCategories(d.categories || [])).catch(() => {});
+    api.adminCategories().then((d) => setCategories(d.categories || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!isEdit) return;
     api
-      .getProducts()
+      .adminProduct(id)
       .then((data) => {
-        const product = (data.products || []).find((p) => p.id === id);
-        if (!product) {
-          setNotice('Product not found in catalog.');
-          return;
-        }
+        const product = data.product;
         setForm({
           name: product.name || '',
           slug: product.slug || '',
@@ -52,18 +57,19 @@ export default function AdminProductForm() {
           description: product.description || '',
           categorySlug: product.category?.slug || '',
           imageUrl: product.imageUrl || '',
-          basePrice: product.price?.formatted?.replace(/[^\d.]/g, '') || '',
-          isPublished: true,
+          basePrice: centsToRupees(product.basePriceCents),
+          isPublished: Boolean(product.isPublished),
           variants: (product.variants || []).map((v) => ({
+            id: v.id,
             sku: v.sku || '',
             color: v.attrs?.color || '',
             size: v.attrs?.size || '',
-            price: v.price?.formatted?.replace(/[^\d.]/g, '') || '',
+            price: centsToRupees(v.priceCents),
             stockQty: String(v.stockQty ?? 0),
           })),
         });
       })
-      .catch((err) => setNotice(err.message))
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id, isEdit]);
 
@@ -89,15 +95,76 @@ export default function AdminProductForm() {
     }));
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    setNotice(
-      'UI only — saving will work once admin APIs are connected. Form values are ready to send.'
-    );
+  async function handleImageUpload(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setNotice('');
+    setUploadingImage(true);
+    try {
+      const data = await api.adminUploadProductImage(file);
+      update('imageUrl', data.imageUrl || '');
+      setNotice('Image uploaded. Save the product to keep it.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
-  function handleDelete() {
-    setNotice('UI only — delete is not wired to the API yet.');
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setNotice('');
+    setSaving(true);
+
+    const payload = {
+      name: form.name,
+      slug: form.slug,
+      brand: form.brand || null,
+      description: form.description || null,
+      categorySlug: form.categorySlug || null,
+      imageUrl: form.imageUrl || null,
+      basePrice: form.basePrice,
+      isPublished: form.isPublished,
+      variants: form.variants.map((v) => ({
+        ...(v.id ? { id: v.id } : {}),
+        sku: v.sku,
+        color: v.color,
+        size: v.size,
+        price: v.price,
+        stockQty: Number(v.stockQty),
+      })),
+    };
+
+    try {
+      if (isEdit) {
+        await api.adminUpdateProduct(id, payload);
+        setNotice('Product updated.');
+      } else {
+        const data = await api.adminCreateProduct(payload);
+        setNotice('Product created.');
+        navigate(`/admin/products/${data.product.id}/edit`, { replace: true });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Delete this product permanently?')) return;
+    setError('');
+    setSaving(true);
+    try {
+      await api.adminDeleteProduct(id);
+      navigate('/admin/products');
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="empty">Loading product…</div>;
@@ -107,13 +174,14 @@ export default function AdminProductForm() {
       <div className="admin-head">
         <div>
           <h1 className="page-title">{isEdit ? 'Edit product' : 'New product'}</h1>
-          <p className="muted">Catalog fields match the live product schema.</p>
+          <p className="muted">Prices are in rupees (e.g. 7999 = ₹7,999).</p>
         </div>
         <Link className="btn btn-ghost" to="/admin/products">
           Back
         </Link>
       </div>
 
+      {error && <div className="error">{error}</div>}
       {notice && <div className="success">{notice}</div>}
 
       <form className="form panel" onSubmit={handleSubmit}>
@@ -155,13 +223,36 @@ export default function AdminProductForm() {
             onChange={(e) => update('description', e.target.value)}
           />
         </label>
-        <div className="form-row">
+        <div className="admin-image-row">
+          {form.imageUrl ? (
+            <img className="admin-image-preview" src={mediaUrl(form.imageUrl)} alt="" />
+          ) : (
+            <div className="admin-image-preview admin-image-preview--empty">No image</div>
+          )}
+          <div className="admin-image-fields">
+            <label>
+              Upload image
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleImageUpload}
+                disabled={uploadingImage}
+              />
+              <span className="muted">
+                {uploadingImage ? 'Uploading…' : 'JPEG, PNG, WebP, or GIF · max 5MB'}
+              </span>
+            </label>
+            <label>
+              Or image URL
+              <input
+                value={form.imageUrl}
+                onChange={(e) => update('imageUrl', e.target.value)}
+                placeholder="/uploads/products/… or https://…"
+              />
+            </label>
+          </div>
           <label>
-            Image URL
-            <input value={form.imageUrl} onChange={(e) => update('imageUrl', e.target.value)} />
-          </label>
-          <label>
-            Base price (display)
+            Base price (₹)
             <input
               value={form.basePrice}
               onChange={(e) => update('basePrice', e.target.value)}
@@ -180,9 +271,10 @@ export default function AdminProductForm() {
 
         <h3 className="admin-subhead">Variants / SKUs</h3>
         {form.variants.map((v, i) => (
-          <div className="admin-variant" key={i}>
+          <div className="admin-variant" key={v.id || i}>
             <input
               placeholder="SKU"
+              required
               value={v.sku}
               onChange={(e) => updateVariant(i, 'sku', e.target.value)}
             />
@@ -197,12 +289,14 @@ export default function AdminProductForm() {
               onChange={(e) => updateVariant(i, 'size', e.target.value)}
             />
             <input
-              placeholder="Price"
+              placeholder="Price ₹"
+              required
               value={v.price}
               onChange={(e) => updateVariant(i, 'price', e.target.value)}
             />
             <input
               placeholder="Stock"
+              required
               value={v.stockQty}
               onChange={(e) => updateVariant(i, 'stockQty', e.target.value)}
             />
@@ -218,11 +312,11 @@ export default function AdminProductForm() {
         </button>
 
         <div className="admin-actions">
-          <button className="btn btn-primary" type="submit">
-            {isEdit ? 'Save changes' : 'Create product'}
+          <button className="btn btn-primary" type="submit" disabled={saving}>
+            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
           </button>
           {isEdit && (
-            <button className="btn btn-ghost" type="button" onClick={handleDelete}>
+            <button className="btn btn-ghost" type="button" onClick={handleDelete} disabled={saving}>
               Delete
             </button>
           )}

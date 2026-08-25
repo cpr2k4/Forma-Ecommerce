@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -8,17 +8,22 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
+    setError('');
     api
-      .getProducts()
+      .adminProducts()
       .then((data) => setProducts(data.products || []))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
 
   const filtered = products.filter((p) => {
-    const hay = `${p.name} ${p.brand} ${p.slug}`.toLowerCase();
+    const hay = `${p.name} ${p.brand || ''} ${p.slug}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
 
@@ -63,10 +68,10 @@ export default function AdminProducts() {
                 <tr key={p.id}>
                   <td>
                     <div className="admin-product-cell">
-                      {p.imageUrl && <img src={p.imageUrl} alt="" />}
+                      {p.imageUrl && <img src={mediaUrl(p.imageUrl)} alt="" />}
                       <div>
                         <strong>{p.name}</strong>
-                        <div className="muted">{p.brand}</div>
+                        <div className="muted">{p.brand || '—'}</div>
                       </div>
                     </div>
                   </td>
@@ -74,7 +79,9 @@ export default function AdminProducts() {
                   <td>{p.price?.formatted}</td>
                   <td>{p.variants?.length || 0}</td>
                   <td>
-                    <span className="badge">Live</span>
+                    <span className={`badge ${p.isPublished ? '' : 'badge-muted'}`}>
+                      {p.isPublished ? 'Live' : 'Hidden'}
+                    </span>
                   </td>
                   <td className="admin-row-actions">
                     <Link className="btn btn-ghost" to={`/admin/products/${p.id}/edit`}>

@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { mediaUrl } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import ChatBot from './ChatBot';
@@ -27,7 +28,12 @@ export default function Layout() {
             {user?.role === 'ADMIN' && <NavLink to="/admin">Admin</NavLink>}
             {user ? (
               <>
-                <span className="hide-sm muted">{user.fullName.split(' ')[0]}</span>
+                <Link to="/profile" className="nav-profile hide-sm">
+                  {user.avatarUrl ? (
+                    <img className="nav-avatar" src={mediaUrl(user.avatarUrl)} alt="" />
+                  ) : null}
+                  <span className="muted">{user.fullName.split(' ')[0]}</span>
+                </Link>
                 <button className="btn btn-ghost" type="button" onClick={logout}>
                   Log out
                 </button>
